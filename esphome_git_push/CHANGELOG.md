@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0
+
+- **Any Git host, not just GitHub**: `repository` now accepts a full URL and uses
+  it verbatim — `https://host/owner/repo`, `ssh://git@host:port/owner/repo` or the
+  scp-style `git@host:owner/repo` (e.g. a self-hosted Forgejo/Gitea). Only a bare
+  `owner/repo` slug still defaults to GitHub.
+- SSH now trusts a non-GitHub host's key on first use instead of pinning GitHub's
+  and refusing the connection, so a deploy key works against your own server.
+
 ## 1.1.1
 
 - The approval notice links to the GitHub App install page (new placeholder
