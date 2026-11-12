@@ -13,10 +13,10 @@ your device configs survive the loss of the Home Assistant machine.
 
 ## Install
 
-[![Add repository to your Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fwillrnsantana%2Fha-esphome-git-push)
+[![Add repository to your Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fsimcop2387%2Fha-esphome-git-push)
 
 Or: **Settings > Apps > App store > ... > Repositories**, add
-`https://github.com/willrnsantana/ha-esphome-git-push`, then install **ESPHome Git Push**.
+`https://github.com/simcop2387/ha-esphome-git-push`, then install **ESPHome Git Push**.
 
 Requires Home Assistant OS or Supervised, and ESPHome Device Builder 2026.6 or later
 (the version history feature). See [DOCS.md](esphome_git_push/DOCS.md) for setup.
