@@ -43,17 +43,41 @@ else
     INSTALL_URL="the install page of your GitHub App"
 fi
 
-# Accept owner/repo, https://github.com/owner/repo(.git) or git@github.com:owner/repo(.git).
-SLUG="${REPO_OPT}"
-SLUG="${SLUG#https://github.com/}"
-SLUG="${SLUG#git@github.com:}"
-SLUG="${SLUG%.git}"
-SLUG="${SLUG%/}"
-REPO="${SLUG}"
-if [ "${AUTH}" = "ssh" ]; then
-    REMOTE="git@github.com:${SLUG}.git"
-else
-    REMOTE="https://github.com/${SLUG}.git"
+# Accept a bare "owner/repo" slug (defaults to GitHub) or any full git URL, used verbatim:
+#   https://host/owner/repo(.git)
+#   ssh://git@host[:port]/owner/repo(.git)
+#   git@host:owner/repo(.git)          (scp-like syntax, e.g. a self-hosted Forgejo/Gitea)
+REPO=""
+REMOTE=""
+GIT_HOST="github.com"
+if [ -n "${REPO_OPT}" ]; then
+    _raw="${REPO_OPT//[[:space:]]/}"
+    _raw="${_raw%/}"
+    _raw="${_raw%.git}"
+    if [[ "${_raw}" == *"://"* ]]; then
+        # scheme:// URL (https:// or ssh://)
+        REMOTE="${_raw}"
+        _rest="${_raw#*://}"                 # [user@]host[:port]/path
+        _hp="${_rest%%/*}"; _path="${_rest#*/}"
+        GIT_HOST="${_hp##*@}"; GIT_HOST="${GIT_HOST%%:*}"
+    elif [[ "${_raw}" == *:* && "${_raw%%/*}" == *:* ]]; then
+        # scp-like [user@]host:path -> SSH remote, used verbatim
+        REMOTE="${_raw}"
+        _hp="${_raw%%:*}"; _path="${_raw#*:}"
+        GIT_HOST="${_hp##*@}"
+    else
+        # bare owner/repo slug: default to GitHub with the chosen auth scheme
+        GIT_HOST="github.com"
+        _path="${_raw}"
+        if [ "${AUTH}" = "ssh" ]; then
+            REMOTE="git@github.com:${_path}.git"
+        else
+            REMOTE="https://github.com/${_path}.git"
+        fi
+    fi
+    # Friendly name for notifications/templates: owner/repo on GitHub, host/owner/repo otherwise.
+    REPO="${GIT_HOST}/${_path}"
+    [ "${GIT_HOST}" = "github.com" ] && REPO="${_path}"
 fi
 
 git_esp() {
@@ -251,7 +275,7 @@ git_remote() {
         token="$(github_token)"
         header="Authorization: Basic $(printf 'x-access-token:%s' "${token}" | base64 | tr -d '\n')"
         timeout 120 git -c safe.directory='*' -c core.fileMode=false \
-            -c credential.helper= -c "http.https://github.com/.extraHeader=${header}" "$@"
+            -c credential.helper= -c "http.${REMOTE}.extraHeader=${header}" "$@"
     fi
 }
 
@@ -264,9 +288,19 @@ setup_ssh() {
         bashio::log.info "Generating the app SSH key (one time only)."
         ssh-keygen -q -t ed25519 -N "" -C "esphome-git-push@homeassistant" -f "${KEY}"
     fi
-    # GitHub's published host key (https://api.github.com/meta), pinned.
-    echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > "${KNOWN}"
-    export GIT_SSH_COMMAND="ssh -i ${KEY} -o IdentitiesOnly=yes -o UserKnownHostsFile=${KNOWN} -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=2"
+    # GitHub's published host key (https://api.github.com/meta), pinned. For any
+    # other host (self-hosted Forgejo/Gitea/...) trust its key on first use and
+    # keep it afterwards, instead of pinning GitHub's and rejecting the connect.
+    if [ "${GIT_HOST}" = "github.com" ]; then
+        echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > "${KNOWN}"
+        STRICT="yes"
+    else
+        touch "${KNOWN}"
+        chmod 600 "${KNOWN}"
+        STRICT="accept-new"
+        bashio::log.info "Trusting ${GIT_HOST}'s host key on first use (verify it in the log matches your server)."
+    fi
+    export GIT_SSH_COMMAND="ssh -i ${KEY} -o IdentitiesOnly=yes -o UserKnownHostsFile=${KNOWN} -o StrictHostKeyChecking=${STRICT} -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=2"
     bashio::log.info "App public key (add it as a Deploy key with write access to the repository):"
     bashio::log.info "$(cat "${KEY}.pub")"
 }
@@ -355,7 +389,7 @@ push() {
         if [ "${attempt}" -lt "${total}" ]; then sleep "${RETRY_DELAY}"; fi
     done
     bashio::log.error "Push failed after ${total} attempts."
-    if [ "${AUTH}" != "ssh" ] && [[ "${output}" == *"Write access to repository not granted"* || "${output}" == *"Repository not found"* ]]; then
+    if [ "${AUTH}" != "ssh" ] && [ "${GIT_HOST}" = "github.com" ] && [[ "${output}" == *"Write access to repository not granted"* || "${output}" == *"Repository not found"* ]]; then
         output="The GitHub App has no access to ${REPO}. Install it on this repository: ${INSTALL_URL} (GitHub said: ${output})"
     fi
     report_failure "${output}" "${total}"
