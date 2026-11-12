@@ -79,6 +79,9 @@ if [ -n "${REPO_OPT}" ]; then
     REPO="${GIT_HOST}/${_path}"
     [ "${GIT_HOST}" = "github.com" ] && REPO="${_path}"
 fi
+# Diagnostic: shows exactly what the app received and the remote it resolved to.
+bashio::log.info "run.sh v1.2.1 | repository option received: '${REPO_OPT}'"
+bashio::log.info "Resolved remote: host='${GIT_HOST}' url='${REMOTE}' auth='${AUTH}'"
 
 git_esp() {
     git -c safe.directory='*' -c core.fileMode=false -C "${ESP_DIR}" "$@"

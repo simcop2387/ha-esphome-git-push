@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1
+
+- Logs the exact `repository` value it received and the remote/host it resolved
+  to on startup, so a wrong target is visible in the log instead of guessed.
+
 ## 1.2.0
 
 - **Any Git host, not just GitHub**: `repository` now accepts a full URL and uses
